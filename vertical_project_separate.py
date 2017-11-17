@@ -140,28 +140,37 @@ def vertical_separate(im_lists):
 def save_separated_ims(split_im_arrays):
     sorted_list = sorted(split_im_arrays,key=lambda x:x[0])
     index = 0
-    white = np.array([0,0,0])
-    black = np.array([255,255,255])
     for item in sorted_list:
         (_,im_array) = item
-        
-        for x in range(32):
-            for y in range(32):
-                if (im_array[x][y]==white).all() or (im_array[x][y] == black).all():
-                    pass
-                else:
-                    print(im_array[x][y])
         im = matrix_2_image(im_array) 
         im = im.filter(ImageFilter.SMOOTH_MORE)
         #im.save(str(index)+".jpg","jpeg",quality=100)
         im.save(str(index)+".bmp")
         index += 1
     pass 
+
+def fetch_separated_ims(split_im_arrays):
+    sorted_list = sorted(split_im_arrays,key=lambda x:x[0])
+    im_lists = []
+    for item in sorted_list:
+        (_,im_array) = item
+        im = matrix_2_image(im_array) 
+        im = im.filter(ImageFilter.SMOOTH_MORE)
+        im_lists.append(im)
+    return im_lists
+    pass 
             
 def hybird_separate(im_path):
     im_lists = connection_separate(im_path)
     split_im_arrays = vertical_separate(im_lists)
     save_separated_ims(split_im_arrays)
+    pass
+
+def hybird_separate_ex(im_path):
+    im_lists = connection_separate(im_path)
+    split_im_arrays = vertical_separate(im_lists)
+    im_lists = fetch_separated_ims(split_im_arrays)
+    return im_lists
     pass
 
 if __name__ == "__main__":
