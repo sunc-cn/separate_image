@@ -37,19 +37,20 @@ def preprocess_im(im):
     #im = im.filter(ImageFilter.EDGE_ENHANCE_MORE)
     #im = im.filter(ImageFilter.MinFilter(3))  
 
-    im.save("new.png")
+    #im.save("new.png")
     raw_array = np.array(im)
     new_item = np.zeros(shape=raw_array.shape,dtype="uint8")
     new_item.fill(255)
     (h,w,c) = raw_array.shape
     for x in range(h):
         for y in range(w):
-            if raw_array[x][y][0] < 130 and raw_array[x][y][1] < 130 and raw_array[x][y][2] < 130:
+            if raw_array[x][y][0] < 170 and raw_array[x][y][1] < 170 and raw_array[x][y][2] < 170:
                 new_item[x][y][0] = 0
                 new_item[x][y][1] = 0
                 new_item[x][y][2] = 0
     new_im = matrix_2_image(new_item)
-    new_im.save("new2.png")
+    #new_im = im.filter(ImageFilter.SMOOTH_MORE)
+    #new_im.save("new2.png")
     return new_im
     pass
 
@@ -62,8 +63,8 @@ def connection_separate(im_path):
     raw_bin_array = np.array(raw_bin)
     #raw_bin_array = skimage.morphology.remove_small_objects(np.array(raw_bin),min_size=1111,connectivity=1,in_place=False)
     #labels,num = skimage.measure.label(np.array(raw_bin),background=1,connectivity=2,neighbors=4,return_num=True)
-    labels,num = skimage.measure.label(raw_bin_array,background=1,connectivity=2,neighbors=4,return_num=True)
-    print(labels,labels.shape,num,labels.max())
+    labels,num = skimage.measure.label(raw_bin_array,background=1,connectivity=2,neighbors=8,return_num=True)
+    #print(labels,labels.shape,num,labels.max())
     im_dict = {}
     raw_array = np.array(raw_im)
     for i in range(num+1):
@@ -96,7 +97,7 @@ def vertical_separate(im_lists):
         h, w = gray_image.shape
         if h > K_Max_Height:
             print("incorrect height:%d"%(h))
-            return
+            return split_im_arrays
         im =  gray_image
 
         last_blank = True
@@ -109,9 +110,9 @@ def vertical_separate(im_lists):
             if last_blank != is_blank:
                 row_index_list.append(y)
             last_blank = is_blank
-        print(row_index_list,len(row_index_list))
+        #print(row_index_list,len(row_index_list))
         if len(row_index_list) <= 1:
-            return
+            return split_im_arrays
         if len(row_index_list)%2 != 0:
             row_index_list.append(w-1)
         for i in range(1,len(row_index_list),2):
@@ -138,6 +139,9 @@ def vertical_separate(im_lists):
     pass
 
 def save_separated_ims(split_im_arrays):
+    if len(split_im_arrays) == 0:
+        print("save_separated_ims length ",len(split_im_arrays))
+        return
     sorted_list = sorted(split_im_arrays,key=lambda x:x[0])
     index = 0
     for item in sorted_list:
@@ -174,4 +178,4 @@ def hybird_separate_ex(im_path):
     pass
 
 if __name__ == "__main__":
-    hybird_separate("./dst2.png")
+    hybird_separate("./khz.jpg")
