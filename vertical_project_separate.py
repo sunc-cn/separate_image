@@ -42,6 +42,7 @@ def preprocess_im(im):
     new_item = np.zeros(shape=raw_array.shape,dtype="uint8")
     new_item.fill(255)
     (h,w,c) = raw_array.shape
+    # enhance image's black pixel
     for x in range(h):
         for y in range(w):
             if raw_array[x][y][0] < 170 and raw_array[x][y][1] < 170 and raw_array[x][y][2] < 170:
@@ -71,6 +72,7 @@ def connection_separate(im_path):
         new_item = np.zeros(shape=raw_array.shape,dtype="uint8")
         new_item.fill(255)
         im_dict[i] = new_item
+    im_pixel_dict = {}
     for x in range(len(labels)):
         for y in range(len(labels[x])):
             if labels[x][y] != 0:
@@ -78,10 +80,18 @@ def connection_separate(im_path):
                 im_dict[k][x][y][0] = raw_im_processed_array[x][y][0]
                 im_dict[k][x][y][1] = raw_im_processed_array[x][y][1]
                 im_dict[k][x][y][2] = raw_im_processed_array[x][y][2]
+                if k not in im_pixel_dict.keys():
+                    im_pixel_dict[k] = 1
+                else:
+                    im_pixel_dict[k] += 1
                 pass
     im_lists = []
+    minimum_pixels = 15
     for (k,v) in im_dict.items():
         if k != 0:
+            if im_pixel_dict[k] < minimum_pixels:
+                # filter overlow pixels
+                continue
             im = matrix_2_image(v)
             #im.save(str(k)+".png")
             im_lists.append(im)
@@ -148,6 +158,7 @@ def save_separated_ims(split_im_arrays):
         (_,im_array) = item
         im = matrix_2_image(im_array) 
         im = im.filter(ImageFilter.SMOOTH_MORE)
+        #im = im.filter(ImageFilter.MaxFilter(3))
         #im.save(str(index)+".jpg","jpeg",quality=100)
         im.save(str(index)+".bmp")
         index += 1
@@ -174,8 +185,236 @@ def hybird_separate_ex(im_path):
     im_lists = connection_separate(im_path)
     split_im_arrays = vertical_separate(im_lists)
     im_lists = fetch_separated_ims(split_im_arrays)
+    #check_im_lists(im_lists)
+    double_list = find_double_with_img(im_lists)
+    if len(double_list) != 0:
+        index_dict = {}
+        for index in double_list:
+            im = im_lists[index]
+            (wb,we) = get_im_width_ends(im)
+            start_point = (0,int((we-wb)/2 + wb))
+            im_grey = convert_2_gray(np.array(im))
+            drop_path_points = drop_fall_to_down(start_point,im_grey)
+            ims = apply_split_path(im,drop_path_points)
+            index_dict[index] = ims
+        new_im_lists = []
+        for index in range(len(im_lists)):
+            if index in double_list:
+                ims = index_dict[index]
+                new_im_lists.append(ims[0])
+                new_im_lists.append(ims[1])
+                pass
+            else:
+                new_im_lists.append(im_lists[index])
+        im_lists = new_im_lists
+        pass
+    #for index in range(len(im_lists)):
+    #    im = im_lists[index]
+    #    im.save(str(index)+".bmp")
     return im_lists
     pass
 
+def apply_split_path(im,split_path_points):
+    raw_array = np.array(im)
+    im_array1 = np.zeros(shape=raw_array.shape,dtype="uint8")
+    im_array1.fill(255)
+    im_array2 = np.zeros(shape=raw_array.shape,dtype="uint8")
+    im_array2.fill(255)
+    (h,w,_)  = raw_array.shape
+    for p in split_path_points:
+        (px,py) = p
+        for y in range(py):
+            im_array1[px][y] = raw_array[px][y]
+        for y in range(py+1,w):
+            im_array2[px][y] = raw_array[px][y]
+    im1 = matrix_2_image(im_array1)
+    im2 = matrix_2_image(im_array2)
+    #im1.save("im1.bmp")
+    #im2.save("im2.bmp")
+    return (im1,im2)
+    pass
+
+def get_im_height_width(im):
+    im_array = np.array(im)
+    (height,width,_) = im_array.shape
+    white = np.array([255,255,255])
+    height_be = 0
+    height_ee = height - 1
+    for x in range(height):
+        is_found = False
+        for y in range(width):
+            if not (im_array[x][y] ==  white).all():
+                height_be = x
+                is_found = True
+                break
+        if is_found:
+            break
+    for x in range(height-1,-1,-1):
+        is_found = False
+        for y in range(width):
+            if not (im_array[x][y] ==  white).all():
+                height_ee = x
+                is_found = True
+                break
+        if is_found:
+            break
+    
+    width_be = 0
+    width_ee = width - 1
+    for y in range(width):
+        is_found = False
+        for x in range(height):
+            if not (im_array[x][y] ==  white).all():
+                width_be = y
+                is_found = True
+                break
+        if is_found:
+            break
+    for y in range(width-1,-1,-1):
+        is_found = False
+        for x in range(height):
+            if not (im_array[x][y] ==  white).all():
+                width_ee = y
+                is_found = True
+                break
+        if is_found:
+            break
+    #print(height_be,height_ee,width_be,width_ee)  
+    h = height_ee - height_be + 1
+    w = width_ee - width_be + 1
+    #print(h,w)
+    return (h,w) 
+    pass
+
+def check_im_lists(im_lists):
+    hw_list = []
+    for item in im_lists:
+        hw = get_im_height_width(item)
+        hw_list.append(hw)
+    if len(hw_list) == 0:
+        return True
+    height_list = []
+    width_list = []
+    for item in hw_list:
+        height_list.append(item[0])
+        width_list.append(item[1])
+    height_list = sorted(height_list)
+    width_list = sorted(width_list)
+    #print(height_list)
+    #print(width_list)
+    h_min = height_list[0]
+    h_max = height_list[len(height_list)-1]
+    w_min = width_list[0]
+    w_max = width_list[len(width_list)-1]
+    h_mid_index = int(len(height_list)/2)
+    w_mid_index = int(len(width_list)/2)
+    h_mid = height_list[h_mid_index]
+    w_mid = width_list[w_mid_index]
+    w_limit = 4
+    h_limit = 4
+    if w_mid - w_min > w_limit or w_max - w_mid > w_limit:
+        print("width analyze",w_min,w_mid,w_max)
+        return False
+    if h_mid - h_min > h_limit or h_max-h_mid > h_limit:
+        print("height analyze",h_min,h_mid,h_max)
+        return False
+    return True
+    pass
+
+def drop_fall_to_down(start_point,im_grey):
+    (height,width) = im_grey.shape
+    (cx,cy) = start_point
+    curr = start_point
+    points = []
+    while cx < height-2:
+        left1 = (cx,cy-1)
+        right3 = (cx,cy+1)
+        r_left1 = (cx+1,cy-1)
+        r_mid2= (cx+1,cy)
+        r_right3 = (cx+1,cy+1)
+        r1_left1 = (cx+2,cy-1)
+        r1_mid2= (cx+2,cy)
+        r1_right3 = (cx+2,cy+1)
+        if im_grey[r_mid2[0]][r_mid2[1]] == 255:
+            curr = r_mid2
+        elif im_grey[r_left1[0]][r_left1[1]] == 255:
+            curr = r_left1
+        elif im_grey[r_right3[0]][r_right3[1]] == 255:
+            curr = r_right3
+        elif im_grey[r1_right3[0]][r1_right3[1]] == 255:
+            curr = r_mid2
+        elif im_grey[r1_left1[0]][r1_left1[1]] == 255:
+            curr = r_mid2
+        elif im_grey[r1_left1[0]][r1_left1[1]] == 255:
+            curr = r_mid2
+        elif im_grey[left1[0]][left1[1]] == 255:
+            curr = left1 
+        elif im_grey[right3[0]][right3[1]] == 255:
+            curr = right3
+        else:
+            curr = r_mid2
+        if curr in points:
+            curr = r_mid2
+        points.append(curr)
+        cx = curr[0]
+        cy = curr[1]
+        #print("down,cx",cx,curr,cy)
+    return points
+
+def get_im_width_ends(im):
+    im_array = np.array(im)
+    (height,width,_) = im_array.shape
+    white = np.array([255,255,255])
+    width_be = 0
+    width_ee = width - 1
+    for y in range(width):
+        is_found = False
+        for x in range(height):
+            if not (im_array[x][y] ==  white).all():
+                width_be = y
+                is_found = True
+                break
+        if is_found:
+            break
+    for y in range(width-1,-1,-1):
+        is_found = False
+        for x in range(height):
+            if not (im_array[x][y] ==  white).all():
+                width_ee = y
+                is_found = True
+                break
+        if is_found:
+            break
+    return (width_be,width_ee)
+
+def find_double_with_img(im_lists):
+    hw_list = []
+    for item in im_lists:
+        hw = get_im_height_width(item)
+        hw_list.append(hw)
+    if len(hw_list) == 0:
+        return True
+    width_list = []
+    for item in hw_list:
+        width_list.append(item[1])
+    width_list_sorted = sorted(width_list)
+    w_mid_index = int(len(width_list)/2)
+    w_mid = width_list_sorted[w_mid_index]
+    width_prop = 1.6
+    double_width_list = []
+    for index in range(len(width_list)):
+        w = width_list[index]
+        if (float(w)/float(w_mid)) > width_prop:
+            double_width_list.append(index)
+    print(double_width_list)
+    return double_width_list
+
 if __name__ == "__main__":
-    hybird_separate("./khz.jpg")
+    #hybird_separate("./khz.jpg")
+    #hybird_separate_ex("./khz.jpg")
+    #im_file = "./100458.jpg"
+    #im_file = "./201032792552.jpg"
+    im_file = "./dst2.png"
+    #hybird_separate(im_file)
+    hybird_separate_ex(im_file)
+
