@@ -34,11 +34,12 @@ def get_split_pixel(im,n_clusters):
         cluster_center = k_means_cluster_centers[k]
         center_list.append(cluster_center)
     sorted_list = sorted(center_list,key=lambda x:x[0]+x[1]+x[2])
-    #print(sorted_list)
+    print(sorted_list)
     if len(sorted_list) == n_clusters and n_clusters > 2:
         pixel1 = sorted_list[0]
         pixel2 = sorted_list[1]
-        split_pixel = ([(pixel1[0]+pixel2[0])/2,(pixel1[1]+pixel2[1])/2,(pixel1[1]+pixel2[1])/2])
+        #split_pixel = ([(pixel1[0]+pixel2[0])/2,(pixel1[1]+pixel2[1])/2,(pixel1[1]+pixel2[1])/2])
+        split_pixel = pixel2
         return split_pixel
     else:
         raise NameError("sorted_list size is not equal with n_clusters")
@@ -57,12 +58,14 @@ def apply_split_pixel(im,split_pixel):
     return new_im
 def white_background(im_path):
     im = Image.open(im_path)
-    pixel = get_split_pixel(im,3)
+    pixel = get_split_pixel(im,4)
     new_im = apply_split_pixel(im,pixel)
+    new_im = new_im.filter(ImageFilter.SMOOTH_MORE)
     return new_im
 
 if __name__ == "__main__":
     file_name = "./id_number.png"
+    #file_name = "./dst2.png"
     new_im = white_background(file_name)
     new_im.save("./new_id_number.bmp")
 
